@@ -20,20 +20,20 @@ RI <- function(n){
 }
 
 #' Calculate the ahp priority weights from the AHP matrix.
-#' 
-#' For a comparison of different methods, see for example \bold{How to derive priorities in AHP: a comparative study}, 
+#'
+#' For a comparison of different methods, see for example \bold{How to derive priorities in AHP: a comparative study},
 #' by Alessio Ishizaka and Markus Lusti, as available here: http://eprints.port.ac.uk/9041/1/filetodownload,70633,en.pdf
-#' 
+#'
 #' @param mat The AHP preference matrix
-#' @param allowedConsistency if the AHP consistency ratio is larger 
+#' @param allowedConsistency if the AHP consistency ratio is larger
 #' than this value, AHP is not applied and equal weights are returned.
 #' @return the ahp preference weights
-#' 
+#'
 #' @export
-PrioritiesFromPairwiseMatrixEigenvalues <- function(mat, allowedConsistency = 1) { 
+PrioritiesFromPairwiseMatrixEigenvalues <- function(mat, allowedConsistency = 1) {
   # weigthing vector
   eig <- eigen(mat, symmetric=FALSE)
-  
+
   #consistency
   M22 = mat/kronecker(matrix(1, dim(mat)[1], 1), t(apply(mat, 2, sum)))
   w = apply(M22, 1, sum) / dim(mat)[1]
@@ -48,31 +48,48 @@ PrioritiesFromPairwiseMatrixEigenvalues <- function(mat, allowedConsistency = 1)
 }
 
 #' @rdname PrioritiesFromPairwiseMatrixEigenvalues
-#' 
+#'
 #' @export
-PrioritiesFromPairwiseMatrixMeanNormalization <- function(mat) {
+PrioritiesFromPairwiseMatrixMeanNormalization <- function(mat, allowedConsistency = 1) {
+  # weigthing vector
   priority <- rowMeans( mat / matrix(rep(colSums(mat), nrow(mat)), nrow = nrow(mat), byrow = TRUE))
-  list(priority = priority, consistency = NA)
+
+  #consistency
+  lambdaMax <- mean((mat %*% priority)/priority) # estimate
+  CI = (lambdaMax - dim(mat)[1]) / (dim(mat)[1]-1)
+  CR = CI / RI(dim(mat)[1])
+  CR <- max(CR, 0) #due to numerical inprecision
+  if (!(is.nan(CI) || CR < allowedConsistency)) priority <- (matrix(1/dim(mat)[1],1,dim(mat)[1]))
+  names(priority) <- dimnames(mat)[[1]]
+  list(priority = priority, consistency = CR)
 }
 
 
 #' @rdname PrioritiesFromPairwiseMatrixEigenvalues
-#' 
+#'
 #' @export
-PrioritiesFromPairwiseMatrixGeometricMean <- function(mat) {
+PrioritiesFromPairwiseMatrixGeometricMean <- function(mat, allowedConsistency = 1) {
   geometricMean <- apply(mat, MARGIN = 1, prod) ^ (1 / nrow(mat))
   priority <- geometricMean / sum(geometricMean)
-  list(priority = priority, consistency = NA)
+
+  #consistency
+  lambdaMax <- mean((mat %*% priority)/priority) # estimate
+  CI = (lambdaMax - dim(mat)[1]) / (dim(mat)[1]-1)
+  CR = CI / RI(dim(mat)[1])
+  CR <- max(CR, 0) #due to numerical inprecision
+  if (!(is.nan(CI) || CR < allowedConsistency)) priority <- (matrix(1/dim(mat)[1],1,dim(mat)[1]))
+  names(priority) <- dimnames(mat)[[1]]
+  list(priority = priority, consistency = CR)
 }
 
 
 #' Create the AHP preference matrix from a dataframe containing
-#' the pairwiswe preferences. 
-#' 
+#' the pairwiswe preferences.
+#'
 #' @param preferenceCombinations a data.frame containing category or alternative
 #' A in the first column, B in the second colum, and the preference in the third column.
 #' @return an AHP preference matrix
-#' 
+#'
 #' @export
 AhpMatrix <- function(preferenceCombinations) {
   cats <- unlist(unique(c(preferenceCombinations[,1], preferenceCombinations[,2])))
@@ -86,18 +103,15 @@ AhpMatrix <- function(preferenceCombinations) {
 
 
 #' Converts a vector of scores into priority weights.
-#' 
-#' While pure AHP limits itself to pairwise preferences, scoring alternatives 
+#'
+#' While pure AHP limits itself to pairwise preferences, scoring alternatives
 #' on an arbitrary scale is often much less time consuming in practice. This method
 #' calculates the priority weight as \code{score / sum(scores)}
-#' 
+#'
 #' @param scores a vector of scores
 #' @return a vector of priority weights
-#' 
+#'
 #' @export
 PrioritiesFromScoresDefault <- function(scores) {
   return (scores / sum(scores))
 }
-
-
-
